@@ -37,7 +37,7 @@ export default () => (
       You can appeal or request a waiver by calling Social Security
        or visiting your local field office. Make sure to have your
         Social Security number and the results from this app printed
-         when you make an appointment. Find your 
+         when you make an appointment. Find your&nbsp;
          <a href="https://www.ssa.gov/locator/">local field office 
          here</a> or call <a href="tel:1-800-772-1213">1-800-772-1213</a>.
     </TextBlock>
