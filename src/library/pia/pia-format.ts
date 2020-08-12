@@ -1,28 +1,16 @@
-import dayjs from "dayjs";
+import * as PiaTypes from "./pia-types";
+import * as PiaUtils from "./pia-utils";
 
 /* based on http://thadk.net/anypiamac-docs/html/General/structure.html 
-copied from SSA AnyPIA downloadable package */
+copied from SSA AnyPia downloadable package */
 
-// Typescript's Record type assumes every key has a value, which is usually not true
-type Dictionary<K extends string | number, V> = Partial<Record<K, V>>;
-
-// Map from line ID to full line string
-type PIALineMap = Dictionary<number, string>;
-
-class PIADate extends Date {}
-
-class PIAMonthYear extends Date {}
-
-class PIAYear extends Number {}
-class PIAEarnings extends Number {}
-
-interface PIASerializer {
-  fieldFormats: Record<string, PIAFieldMeta>;
-  serialize: (data: Partial<PIAData>) => PIALineMap;
-  deserialize: (lineMap: PIALineMap) => Partial<PIAData>;
+interface PiaSerializer {
+  fieldFormats: Record<string, PiaFieldMeta>;
+  serialize: (data: Partial<PiaTypes.PiaData>) => PiaTypes.PiaLineMap;
+  deserialize: (lineMap: PiaTypes.PiaLineMap) => Partial<PiaTypes.PiaData>;
 }
 
-class PIAFieldMeta {
+class PiaFieldMeta {
   startChar: number;
   endChar: number;
   startLine: number;
@@ -35,26 +23,26 @@ class PIAFieldMeta {
     this.endLine = -1;
     this.fieldCharLength = -1;
   }
-  setStartChar(start: number): PIAFieldMeta {
+  setStartChar(start: number): PiaFieldMeta {
     this.startChar = start;
     return this;
   }
 
-  setEndChar(end: number): PIAFieldMeta {
+  setEndChar(end: number): PiaFieldMeta {
     this.endChar = end;
     return this;
   }
 
-  setStartLine(start: number): PIAFieldMeta {
+  setStartLine(start: number): PiaFieldMeta {
     this.startLine = start;
     return this;
   }
-  setEndLine(end: number): PIAFieldMeta {
+  setEndLine(end: number): PiaFieldMeta {
     this.endLine = end;
     return this;
   }
 
-  setFieldCharLength(len: number): PIAFieldMeta {
+  setFieldCharLength(len: number): PiaFieldMeta {
     this.fieldCharLength = len;
     return this;
   }
@@ -70,54 +58,54 @@ that make up the line are null. e.g. see how dataOfDeath handled in sample20 */
 /*
 return ['01', this.ssn, this.sex, dayjs(this.birthDate).format("MMDDYYYY"),'\n', this.piaEverythingElse.join('\n')].join('');
 */
-const basicInfoSerializer: PIASerializer = new (class {
-  fieldFormats: Record<string, PIAFieldMeta>;
+const basicInfoSerializer: PiaSerializer = new (class {
+  fieldFormats: Record<string, PiaFieldMeta>;
   constructor() {
     this.fieldFormats = {
-      ssn: new PIAFieldMeta().setStartChar(3).setEndChar(11),
-      birthDate: new PIAFieldMeta().setStartChar(13).setEndChar(20),
-      dateOfDeath: new PIAFieldMeta().setStartChar(3).setEndChar(10),
-      sex: new PIAFieldMeta().setStartChar(12).setEndChar(12),
+      ssn: new PiaFieldMeta().setStartChar(3).setEndChar(11),
+      birthDate: new PiaFieldMeta().setStartChar(13).setEndChar(20),
+      dateOfDeath: new PiaFieldMeta().setStartChar(3).setEndChar(10),
+      sex: new PiaFieldMeta().setStartChar(12).setEndChar(12),
     };
   }
 
-  serialize(data: Partial<PIAData>): PIALineMap {
+  serialize(data: Partial<PiaTypes.PiaData>): PiaTypes.PiaLineMap {
     const line01 = {
       1: `01${
         data.ssn != undefined ? data.ssn : this.fieldFormats.ssn.getBlank()
       }${data.sex != undefined ? data.sex : " "}${
         data.birthDate != undefined
-          ? formatPIADateStr(data.birthDate)
+          ? PiaUtils.formatPiaDateStr(data.birthDate)
           : this.fieldFormats.birthDate.getBlank()
       }`,
     };
     const line02 = {
       2: `02${
         data.dateOfDeath != undefined
-          ? formatPIADateStr(data.dateOfDeath)
+          ? PiaUtils.formatPiaDateStr(data.dateOfDeath)
           : this.fieldFormats.dateOfDeath.getBlank()
       }`,
     };
 
     return { ...line01, ...(data.dateOfDeath && line02) };
   }
-  deserialize(lineMap: PIALineMap): Partial<PIAData> {
+  deserialize(lineMap: PiaTypes.PiaLineMap): Partial<PiaTypes.PiaData> {
     const line01Str = lineMap[1];
     const line02Str = lineMap[2];
 
     const line01Data = line01Str
       ? {
-          ssn: parsePiaString(
+          ssn: PiaUtils.parsePiaString(
             line01Str,
             this.fieldFormats.ssn.startChar,
             this.fieldFormats.ssn.endChar
           ),
-          birthDate: parsePiaDate(
+          birthDate: PiaUtils.parsePiaDate(
             line01Str,
             this.fieldFormats.birthDate.startChar,
             this.fieldFormats.birthDate.endChar
           ),
-          sex: parsePiaSex(
+          sex: PiaUtils.parsePiaSex(
             line01Str,
             this.fieldFormats.sex.startChar,
             this.fieldFormats.sex.endChar
@@ -128,23 +116,23 @@ const basicInfoSerializer: PIASerializer = new (class {
     const line02Data = line02Str
       ? {
           // Maybe don't even need the end index? If all dates have the same length
-          dateOfDeath: parsePiaDate(line02Str, 3, 10),
+          dateOfDeath: PiaUtils.parsePiaDate(line02Str, 3, 10),
         }
       : {};
     return { ...line01Data, ...line02Data };
   }
 })();
 
-const benefitSerializer: PIASerializer = new (class {
-  fieldFormats: Record<string, PIAFieldMeta>;
+const benefitSerializer: PiaSerializer = new (class {
+  fieldFormats: Record<string, PiaFieldMeta>;
   constructor() {
     this.fieldFormats = {
-      typeOfBenefit: new PIAFieldMeta().setStartChar(3).setEndChar(3),
-      monthYearEntitlement: new PIAFieldMeta().setStartChar(4).setEndChar(9),
-      monthYearBenefit: new PIAFieldMeta().setStartChar(3).setEndChar(8),
+      typeOfBenefit: new PiaFieldMeta().setStartChar(3).setEndChar(3),
+      monthYearEntitlement: new PiaFieldMeta().setStartChar(4).setEndChar(9),
+      monthYearBenefit: new PiaFieldMeta().setStartChar(3).setEndChar(8),
     };
   }
-  serialize(data: Partial<PIAData>): PIALineMap {
+  serialize(data: Partial<PiaTypes.PiaData>): PiaTypes.PiaLineMap {
     const line03 = {
       3: `03${
         data.typeOfBenefit != undefined
@@ -152,32 +140,32 @@ const benefitSerializer: PIASerializer = new (class {
           : this.fieldFormats.typeOfBenefit.getBlank()
       }${
         data.monthYearEntitlement != undefined
-          ? formatPIAMonthStr(data.monthYearEntitlement)
+          ? PiaUtils.formatPiaMonthStr(data.monthYearEntitlement)
           : this.fieldFormats.monthYearEntitlement.getBlank()
       }`,
     };
     const line04 = {
       4: `04${
         data.monthYearBenefit != undefined
-          ? formatPIAMonthStr(data.monthYearBenefit)
+          ? PiaUtils.formatPiaMonthStr(data.monthYearBenefit)
           : this.fieldFormats.monthYearBenefit.getBlank()
       }`,
     };
 
     return { ...line03, ...(data.monthYearBenefit && line04) };
   }
-  deserialize(lineMap: PIALineMap): Partial<PIAData> {
+  deserialize(lineMap: PiaTypes.PiaLineMap): Partial<PiaTypes.PiaData> {
     let line03 = lineMap[3];
     let line04 = lineMap[4];
 
     let line03Data = line03
       ? {
-          typeOfBenefit: parseSSABenefitType(
+          typeOfBenefit: PiaUtils.parseSSABenefitType(
             line03,
             this.fieldFormats.typeOfBenefit.startChar,
             this.fieldFormats.typeOfBenefit.endChar
           ),
-          monthYearEntitlement: parsePiaMonthYear(
+          monthYearEntitlement: PiaUtils.parsePiaMonthYear(
             line03,
             this.fieldFormats.monthYearEntitlement.startChar,
             this.fieldFormats.monthYearEntitlement.endChar
@@ -186,7 +174,7 @@ const benefitSerializer: PIASerializer = new (class {
       : {};
     let line04Data = line04
       ? {
-          monthYearEntitlement: parsePiaMonthYear(
+          monthYearEntitlement: PiaUtils.parsePiaMonthYear(
             line04,
             this.fieldFormats.monthYearEntitlement.startChar,
             this.fieldFormats.monthYearEntitlement.endChar
@@ -203,22 +191,22 @@ and the money that your employer collects goes to the federal government
  in order to fund the Social Security program.
 return 
 */
-const oasdiEarningsSerializer: PIASerializer = new (class {
-  fieldFormats: Record<string, PIAFieldMeta>;
+const oasdiEarningsSerializer: PiaSerializer = new (class {
+  fieldFormats: Record<string, PiaFieldMeta>;
 
   // all start at 3 and continue for number of entries based on other values.
   constructor() {
     this.fieldFormats = {
-      firstEarningYearActual: new PIAFieldMeta().setStartChar(3).setEndChar(6),
-      lastEarningYearActual: new PIAFieldMeta().setStartChar(7).setEndChar(10),
-      typeOfEarnings: new PIAFieldMeta().setStartChar(3).setFieldCharLength(1), //TODO: use fieldCharLength with generic
-      typeOfTaxes: new PIAFieldMeta().setStartChar(3), //line21
-      oasdiEarnings: new PIAFieldMeta()
+      firstEarningYearActual: new PiaFieldMeta().setStartChar(3).setEndChar(6),
+      lastEarningYearActual: new PiaFieldMeta().setStartChar(7).setEndChar(10),
+      typeOfEarnings: new PiaFieldMeta().setStartChar(3).setFieldCharLength(1), //TODO: use fieldCharLength with generic
+      typeOfTaxes: new PiaFieldMeta().setStartChar(3), //line21
+      oasdiEarnings: new PiaFieldMeta()
         .setStartChar(3)
         .setStartLine(22)
         .setEndLine(29)
         .setFieldCharLength(11),
-      hiEarnings: new PIAFieldMeta()
+      hiEarnings: new PiaFieldMeta()
         .setStartChar(3)
         .setStartLine(30)
         .setEndLine(37)
@@ -226,7 +214,7 @@ const oasdiEarningsSerializer: PIASerializer = new (class {
     };
   }
 
-  serialize(data: Partial<PIAData>): PIALineMap {
+  serialize(data: Partial<PiaTypes.PiaData>): PiaTypes.PiaLineMap {
     const line6 = {
       6: `06${
         data.firstEarningYearActual != undefined
@@ -303,16 +291,16 @@ const oasdiEarningsSerializer: PIASerializer = new (class {
       ...line22to29,
     };
   }
-  deserialize(lineMap: PIALineMap): Partial<PIAData> {
+  deserialize(lineMap: PiaTypes.PiaLineMap): Partial<PiaTypes.PiaData> {
     const line6Str = lineMap[6];
     const line20Str = lineMap[20];
-    const line21Str = lineMap[21];
+    // const line21Str = lineMap[21];
     var oasdiLine: string = "";
 
     const line6Data = line6Str
       ? {
           firstEarningYearActual: parseInt(
-            piaSubstr(
+            PiaUtils.piaSubstr(
               line6Str,
               this.fieldFormats.firstEarningYearActual.startChar,
               this.fieldFormats.firstEarningYearActual.endChar || 0 //TODO: handle undefined
@@ -320,7 +308,7 @@ const oasdiEarningsSerializer: PIASerializer = new (class {
             10
           ),
           lastEarningYearActual: parseInt(
-            piaSubstr(
+            PiaUtils.piaSubstr(
               line6Str,
               this.fieldFormats.lastEarningYearActual.startChar,
               this.fieldFormats.lastEarningYearActual.endChar || 0 //TODO: handle undefined
@@ -336,7 +324,10 @@ const oasdiEarningsSerializer: PIASerializer = new (class {
 
     /* process line 22-29 for lifetime OASDI earnings */
     var lineYear = line6Data.firstEarningYearActual || 1950; //TODO: remove stub, calculate from line7 AND line 6.
-    let oasdiData: Map<PIAYear, PIAEarnings> = new Map<PIAYear, PIAEarnings>();
+    let oasdiData: Map<PiaTypes.PiaYear, PiaTypes.PiaEarnings> = new Map<
+      PiaTypes.PiaYear,
+      PiaTypes.PiaEarnings
+    >();
     for (
       var i = this.fieldFormats.oasdiEarnings.startLine;
       i <= this.fieldFormats.oasdiEarnings.endLine;
@@ -347,13 +338,13 @@ const oasdiEarningsSerializer: PIASerializer = new (class {
       } else {
         oasdiLine = lineMap[i] || "";
         oasdiLine = oasdiLine.trim();
-        const parsedLine = parseYearEarningsLineString(
+        const parsedLine = PiaUtils.parseYearEarningsLineString(
           oasdiLine,
           this.fieldFormats.oasdiEarnings.startChar,
           lineYear,
           this.fieldFormats.oasdiEarnings.fieldCharLength
         );
-        oasdiData = new Map<PIAYear, PIAEarnings>([
+        oasdiData = new Map<PiaTypes.PiaYear, PiaTypes.PiaEarnings>([
           ...Array.from(oasdiData.entries()),
           ...Array.from(parsedLine.entries()),
         ]);
@@ -365,7 +356,10 @@ const oasdiEarningsSerializer: PIASerializer = new (class {
     }
 
     lineYear = line6Data.firstEarningYearActual || 1950; //TODO: remove stub, calculate from line7 AND line 6.
-    var hiData: Map<PIAYear, PIAEarnings> = new Map<PIAYear, PIAEarnings>();
+    var hiData: Map<PiaTypes.PiaYear, PiaTypes.PiaEarnings> = new Map<
+      PiaTypes.PiaYear,
+      PiaTypes.PiaEarnings
+    >();
     var hiLine: string;
     for (
       var i = this.fieldFormats.hiEarnings.startLine;
@@ -377,13 +371,13 @@ const oasdiEarningsSerializer: PIASerializer = new (class {
       } else {
         hiLine = lineMap[i] || "";
         hiLine = hiLine.trim();
-        const parsedLine = parseYearEarningsLineString(
+        const parsedLine = PiaUtils.parseYearEarningsLineString(
           hiLine,
           this.fieldFormats.hiEarnings.startChar,
           lineYear,
           this.fieldFormats.hiEarnings.fieldCharLength
         );
-        hiData = new Map<PIAYear, PIAEarnings>([
+        hiData = new Map<PiaTypes.PiaYear, PiaTypes.PiaEarnings>([
           ...Array.from(hiData.entries()),
           ...Array.from(parsedLine.entries()),
         ]);
@@ -398,7 +392,7 @@ const oasdiEarningsSerializer: PIASerializer = new (class {
      two decimal places and leading blanks if required, e.g. "  100000.00"
       for $100,000.00 in earnings.
     */
-    let line22To29Data: Partial<PIAData> = {
+    let line22To29Data: Partial<PiaTypes.PiaData> = {
       oasdiEarnings: oasdiData,
     };
 
@@ -408,13 +402,13 @@ const oasdiEarningsSerializer: PIASerializer = new (class {
        leading blanks if required, e.g. "  100000.00" for $100,000.00 in earnings.
        */
     /*TODO: handle only 1983 range */
-    var line30To37Data: Partial<PIAData> = {
+    var line30To37Data: Partial<PiaTypes.PiaData> = {
       hiEarnings: hiData,
     };
 
     const line20Data = line20Str
       ? {
-          typeOfEarnings: parsePiaTypeOfEarningsString(
+          typeOfEarnings: PiaUtils.parsePiaTypeOfEarningsString(
             line20Str,
             this.fieldFormats.typeOfEarnings.startChar,
             line6Data.firstEarningYearActual || 1950 //TODO: remove stub, calculate from line7 AND line 6.
@@ -440,20 +434,20 @@ const oasdiEarningsSerializer: PIASerializer = new (class {
   }
 })();
 
-const monthlyNoncoveredPensionSerializer: PIASerializer = new (class {
-  fieldFormats: Record<string, PIAFieldMeta>;
+const monthlyNoncoveredPensionSerializer: PiaSerializer = new (class {
+  fieldFormats: Record<string, PiaFieldMeta>;
   constructor() {
     this.fieldFormats = {
-      monthlyNoncoveredPensionAmount: new PIAFieldMeta()
+      monthlyNoncoveredPensionAmount: new PiaFieldMeta()
         .setStartChar(3)
         .setEndChar(12)
         .setFieldCharLength(10),
-      monthYearEntitlementNoncoveredPension: new PIAFieldMeta()
+      monthYearEntitlementNoncoveredPension: new PiaFieldMeta()
         .setStartChar(13)
         .setEndChar(18),
     };
   }
-  serialize(data: Partial<PIAData>): PIALineMap {
+  serialize(data: Partial<PiaTypes.PiaData>): PiaTypes.PiaLineMap {
     const line12 = {
       12: `12${
         data.monthlyNoncoveredPensionAmount != undefined
@@ -467,26 +461,28 @@ const monthlyNoncoveredPensionSerializer: PIASerializer = new (class {
           : this.fieldFormats.monthlyNoncoveredPensionAmount.getBlank()
       }${
         data.monthYearEntitlementNoncoveredPension != undefined
-          ? formatPIAMonthStr(data.monthYearEntitlementNoncoveredPension)
+          ? PiaUtils.formatPiaMonthStr(
+              data.monthYearEntitlementNoncoveredPension
+            )
           : this.fieldFormats.monthYearEntitlementNoncoveredPension.getBlank()
       }`,
     };
 
     return { ...(data.monthlyNoncoveredPensionAmount && line12) };
   }
-  deserialize(lineMap: PIALineMap): Partial<PIAData> {
+  deserialize(lineMap: PiaTypes.PiaLineMap): Partial<PiaTypes.PiaData> {
     let line12 = lineMap[12];
 
     let line12Data = line12
       ? {
-          monthlyNoncoveredPensionAmount: parsePiaFloat(
-            piaSubstr(
+          monthlyNoncoveredPensionAmount: PiaUtils.parsePiaFloat(
+            PiaUtils.piaSubstr(
               line12,
               this.fieldFormats.monthlyNoncoveredPensionAmount.startChar,
               this.fieldFormats.monthlyNoncoveredPensionAmount.endChar
             )
           ),
-          monthYearEntitlementNoncoveredPension: parsePiaMonthYear(
+          monthYearEntitlementNoncoveredPension: PiaUtils.parsePiaMonthYear(
             line12,
             this.fieldFormats.monthYearEntitlementNoncoveredPension.startChar,
             this.fieldFormats.monthYearEntitlementNoncoveredPension.endChar
@@ -497,14 +493,14 @@ const monthlyNoncoveredPensionSerializer: PIASerializer = new (class {
   }
 })();
 
-const nameOfWorkerSerializer: PIASerializer = new (class {
-  fieldFormats: Record<string, PIAFieldMeta>;
+const nameOfWorkerSerializer: PiaSerializer = new (class {
+  fieldFormats: Record<string, PiaFieldMeta>;
   constructor() {
     this.fieldFormats = {
-      nameOfWorker: new PIAFieldMeta().setStartChar(3).setEndChar(37), //TODO truncate to spec
+      nameOfWorker: new PiaFieldMeta().setStartChar(3).setEndChar(37), //TODO truncate to spec
     };
   }
-  serialize(data: Partial<PIAData>): PIALineMap {
+  serialize(data: Partial<PiaTypes.PiaData>): PiaTypes.PiaLineMap {
     const line16 = {
       16: `16${
         data.nameOfWorker != undefined
@@ -515,12 +511,12 @@ const nameOfWorkerSerializer: PIASerializer = new (class {
 
     return { ...(data.nameOfWorker && line16) };
   }
-  deserialize(lineMap: PIALineMap): Partial<PIAData> {
+  deserialize(lineMap: PiaTypes.PiaLineMap): Partial<PiaTypes.PiaData> {
     let line16 = lineMap[16];
 
     let line16Data = line16
       ? {
-          nameOfWorker: piaSubstr(
+          nameOfWorker: PiaUtils.piaSubstr(
             line16,
             this.fieldFormats.nameOfWorker.startChar,
             this.fieldFormats.nameOfWorker.endChar
@@ -536,16 +532,16 @@ does not seem to apply to years relevant for WEP.
 http://thadk.net/anypiamac-docs/html/Forms/quarters_37_77.html
 http://thadk.net/anypiamac-docs/html/Forms/quarters_51_77.html
  */
-const oldQuartersOfCoverageSerializer: PIASerializer = new (class {
-  fieldFormats: Record<string, PIAFieldMeta>;
+const oldQuartersOfCoverageSerializer: PiaSerializer = new (class {
+  fieldFormats: Record<string, PiaFieldMeta>;
   constructor() {
     this.fieldFormats = {
-      oldQuartersOfCoverageStubString: new PIAFieldMeta()
+      oldQuartersOfCoverageStubString: new PiaFieldMeta()
         .setStartChar(3)
         .setEndChar(8),
     };
   }
-  serialize(data: Partial<PIAData>): PIALineMap {
+  serialize(data: Partial<PiaTypes.PiaData>): PiaTypes.PiaLineMap {
     const line95 = {
       95: `95${
         data.oldQuartersOfCoverageStubString != undefined
@@ -556,12 +552,12 @@ const oldQuartersOfCoverageSerializer: PIASerializer = new (class {
 
     return { ...(data.oldQuartersOfCoverageStubString && line95) };
   }
-  deserialize(lineMap: PIALineMap): Partial<PIAData> {
+  deserialize(lineMap: PiaTypes.PiaLineMap): Partial<PiaTypes.PiaData> {
     let line95 = lineMap[95];
 
     let line95Data = line95
       ? {
-          oldQuartersOfCoverageStubString: piaSubstr(
+          oldQuartersOfCoverageStubString: PiaUtils.piaSubstr(
             line95,
             this.fieldFormats.oldQuartersOfCoverageStubString.startChar,
             this.fieldFormats.oldQuartersOfCoverageStubString.endChar
@@ -580,14 +576,14 @@ Maximum wage base projection indicator
 1 for automatic projection
 2 for ad hoc bases
 */
-const wageBaseSerializer: PIASerializer = new (class {
-  fieldFormats: Record<string, PIAFieldMeta>;
+const wageBaseSerializer: PiaSerializer = new (class {
+  fieldFormats: Record<string, PiaFieldMeta>;
   constructor() {
     this.fieldFormats = {
-      wageBaseStubString: new PIAFieldMeta().setStartChar(3).setEndChar(9),
+      wageBaseStubString: new PiaFieldMeta().setStartChar(3).setEndChar(9),
     };
   }
-  serialize(data: Partial<PIAData>): PIALineMap {
+  serialize(data: Partial<PiaTypes.PiaData>): PiaTypes.PiaLineMap {
     const line40 = {
       40: `40${
         data.wageBaseStubString != undefined
@@ -598,12 +594,12 @@ const wageBaseSerializer: PIASerializer = new (class {
 
     return { ...(data.wageBaseStubString && line40) };
   }
-  deserialize(lineMap: PIALineMap): Partial<PIAData> {
+  deserialize(lineMap: PiaTypes.PiaLineMap): Partial<PiaTypes.PiaData> {
     let line40 = lineMap[40];
 
     let line40Data = line40
       ? {
-          wageBaseStubString: piaSubstr(
+          wageBaseStubString: PiaUtils.piaSubstr(
             line40,
             this.fieldFormats.wageBaseStubString.startChar,
             this.fieldFormats.wageBaseStubString.endChar
@@ -615,19 +611,19 @@ const wageBaseSerializer: PIASerializer = new (class {
 })();
 
 /* implement lines 7 and 8, and related lines, in oasdiEarningsSerializer and delete this */
-const earningsProjectionStubSerializer: PIASerializer = new (class {
-  fieldFormats: Record<string, PIAFieldMeta>;
+const earningsProjectionStubSerializer: PiaSerializer = new (class {
+  fieldFormats: Record<string, PiaFieldMeta>;
   constructor() {
     this.fieldFormats = {
-      pastProjectionStubString: new PIAFieldMeta()
+      pastProjectionStubString: new PiaFieldMeta()
         .setStartChar(3)
         .setEndChar(13),
-      futureProjectionStubString: new PIAFieldMeta()
+      futureProjectionStubString: new PiaFieldMeta()
         .setStartChar(3)
         .setEndChar(13),
     };
   }
-  serialize(data: Partial<PIAData>): PIALineMap {
+  serialize(data: Partial<PiaTypes.PiaData>): PiaTypes.PiaLineMap {
     const line7 = {
       7: `07${
         data.pastProjectionStubString != undefined
@@ -649,13 +645,13 @@ const earningsProjectionStubSerializer: PIASerializer = new (class {
       ...(data.futureProjectionStubString && line8),
     };
   }
-  deserialize(lineMap: PIALineMap): Partial<PIAData> {
+  deserialize(lineMap: PiaTypes.PiaLineMap): Partial<PiaTypes.PiaData> {
     let line7 = lineMap[7];
     let line8 = lineMap[8];
 
     let line7Data = line7
       ? {
-          pastProjectionStubString: piaSubstr(
+          pastProjectionStubString: PiaUtils.piaSubstr(
             line7,
             this.fieldFormats.pastProjectionStubString.startChar,
             this.fieldFormats.pastProjectionStubString.endChar
@@ -664,7 +660,7 @@ const earningsProjectionStubSerializer: PIASerializer = new (class {
       : {};
     let line8Data = line8
       ? {
-          futureProjectionStubString: piaSubstr(
+          futureProjectionStubString: PiaUtils.piaSubstr(
             line8,
             this.fieldFormats.futureProjectionStubString.startChar,
             this.fieldFormats.futureProjectionStubString.endChar
@@ -675,7 +671,7 @@ const earningsProjectionStubSerializer: PIASerializer = new (class {
   }
 })();
 
-const PIA_SERIALIZERS: PIASerializer[] = [
+const Pia_SERIALIZERS: PiaSerializer[] = [
   basicInfoSerializer,
   benefitSerializer,
   oasdiEarningsSerializer,
@@ -689,28 +685,29 @@ const PIA_SERIALIZERS: PIASerializer[] = [
 ];
 
 /**
- * Given a list of lines in the AnyPIA format, return a map from
+ * Given a list of lines in the AnyPia format, return a map from
  * line number to the line string itself.
  */
-function createLineMap(lines: string[]): PIALineMap {
+function createLineMap(lines: string[]): PiaTypes.PiaLineMap {
   return lines.reduce((lineMap, line) => {
     const lineNum = parseInt(line.slice(0, 2), 10);
     return Object.assign(lineMap, { [lineNum]: line });
   }, {});
 }
 
-function deserializePIAData(lines: string[]): PIAData {
+function deserializePiaData(lines: string[]): PiaTypes.PiaData {
   const lineMap = createLineMap(lines);
-  const deserializedData = PIA_SERIALIZERS.reduce(
+  const piaDataInit = initializePiaData();
+  const deserializedData = Pia_SERIALIZERS.reduce(
     (data, serializer) => Object.assign(data, serializer.deserialize(lineMap)),
-    {}
+    piaDataInit
   );
 
   return deserializedData;
 }
 
-function serializePIAData(data: PIAData): PIALineMap {
-  const lines = PIA_SERIALIZERS.reduce(
+function serializePiaData(data: PiaTypes.PiaData): PiaTypes.PiaLineMap {
+  const lines = Pia_SERIALIZERS.reduce(
     (lineMap, serializer) => Object.assign(lineMap, serializer.serialize(data)),
     {}
   );
@@ -718,66 +715,171 @@ function serializePIAData(data: PIAData): PIALineMap {
   return lines;
 }
 
-enum PIASex {
-  male = 0,
-  female = 1,
-}
+function initializePiaData(): PiaTypes.PiaData & PiaTypes.PiaDataAdapter {
+  const piaData: PiaTypes.PiaData & PiaTypes.PiaDataAdapter = {
+    ssn: undefined,
+    birthDate: undefined,
+    sex: undefined,
+    dateOfDeath: undefined,
+    typeOfBenefit: undefined,
+    monthYearBenefit: undefined,
+    monthYearEntitlement: undefined,
+    firstEarningYearActual: undefined,
+    lastEarningYearActual: undefined,
+    typeOfEarnings: undefined,
+    typeOfTaxes: undefined,
+    oasdiEarnings: undefined,
+    hiEarnings: undefined,
+    monthlyNoncoveredPensionAmount: undefined,
+    monthYearEntitlementNoncoveredPension: undefined,
+    nameOfWorker: undefined,
+    oldQuartersOfCoverageStubString: undefined,
+    wageBaseStubString: undefined,
+    pastProjectionStubString: undefined,
+    futureProjectionStubString: undefined,
+    piaEverythingElse: undefined,
 
-enum SSABenefitType {
-  old_age = 1,
-  survivor = 2,
-  disability = 3,
-}
-
-/* http://thadk.net/anypiamac-docs/html/Forms/type_of_earnings.html */
-enum PIATypeOfEarnings {
-  entered_earnings = 0,
-  maximum = 1,
-  high = 2,
-  average = 3,
-  low = 4,
-}
-
-enum PIATypeOfTaxes {
-  employee_taxes = 0,
-  self_employed_taxes = 1,
-}
-
-interface PIAData {
-  ssn?: string; //line1
-  birthDate?: PIADate;
-  sex?: PIASex;
-  dateOfDeath?: PIADate; //line2
-  typeOfBenefit?: SSABenefitType; //line 4
-  monthYearBenefit?: PIAMonthYear;
-  monthYearEntitlement?: PIAMonthYear;
-  firstEarningYearActual?: PIAYear; //line6
-  lastEarningYearActual?: PIAYear;
-  typeOfEarnings?: Map<PIAYear, PIATypeOfEarnings>; //line20
-  typeOfTaxes?: Map<PIAYear, PIATypeOfTaxes>; //line21
-  oasdiEarnings?: Map<PIAYear, PIAEarnings>; //line22-29
-  hiEarnings?: Map<PIAYear, PIAEarnings>;
-  monthlyNoncoveredPensionAmount?: PIAEarnings; //line12
-  monthYearEntitlementNoncoveredPension?: PIAMonthYear;
-  nameOfWorker?: string; //line16
-  oldQuartersOfCoverageStubString?: string;
-  wageBaseStubString?: string;
-  pastProjectionStubString?: string;
-  futureProjectionStubString?: string;
-  piaEverythingElse?: string;
+    getSSN() {
+      return this.ssn;
+    },
+    setSSN(value) {
+      this.ssn = value;
+    },
+    getBirthDate() {
+      return this.birthDate;
+    },
+    setBirthDate(value) {
+      this.birthDate = value;
+    },
+    getSex() {
+      return this.sex;
+    },
+    setSex(value) {
+      this.sex = value;
+    },
+    getDateOfDeath() {
+      return this.dateOfDeath;
+    },
+    setDateOfDeath(value) {
+      this.dateOfDeath = value;
+    },
+    getTypeOfBenefit() {
+      return this.typeOfBenefit;
+    },
+    setTypeOfBenefit(value) {
+      this.typeOfBenefit = value;
+    },
+    getMonthYearBenefit() {
+      return this.monthYearBenefit;
+    },
+    setMonthYearBenefit(value) {
+      this.monthYearBenefit = value;
+    },
+    getMonthYearEntitlement() {
+      return this.monthYearEntitlement;
+    },
+    setMonthYearEntitelemnt(value) {
+      this.monthYearEntitlement = value;
+    },
+    getFirstEarningYearActual() {
+      return this.firstEarningYearActual;
+    },
+    setFirstEarningYearActual(value) {
+      this.firstEarningYearActual = value;
+    },
+    getLastEarningYearActual() {
+      return this.lastEarningYearActual;
+    },
+    setLastEarningYearActual(value) {
+      this.lastEarningYearActual = value;
+    },
+    getTypeOfEarnings() {
+      return this.typeOfEarnings;
+    },
+    setTypeOfEarnings(value) {
+      this.typeOfEarnings = value;
+    },
+    getTypeOfTaxes() {
+      return this.typeOfTaxes;
+    },
+    setTypeOfTaxes(value) {
+      this.typeOfTaxes = value;
+    },
+    getOasdiEarnings() {
+      return this.oasdiEarnings;
+    },
+    setOasdiEarnings(value) {
+      this.oasdiEarnings = value;
+    },
+    getHiEarnings() {
+      return this.hiEarnings;
+    },
+    setHiEarnings(value) {
+      this.hiEarnings = value;
+    },
+    getMonthlyNoncoveredPensionAmount() {
+      return this.monthlyNoncoveredPensionAmount;
+    },
+    setMonthlyNoncoveredPensionAmount(value) {
+      this.monthlyNoncoveredPensionAmount = value;
+    },
+    getMonthYearEntitlementNoncoveredPension() {
+      return this.monthYearEntitlementNoncoveredPension;
+    },
+    setMonthYearEntitlementNoncoveredPension(value) {
+      this.monthYearEntitlementNoncoveredPension = value;
+    },
+    getNameOfWorker() {
+      return this.nameOfWorker;
+    },
+    setNameOfWorker(value) {
+      this.nameOfWorker = value;
+    },
+    getOldQuartersOfCoverageStubString() {
+      return this.oldQuartersOfCoverageStubString;
+    },
+    setOldQuartersOfCoverageStubString(value) {
+      this.oldQuartersOfCoverageStubString = value;
+    },
+    getWageBaseStubString() {
+      return this.wageBaseStubString;
+    },
+    setWageBaseStubString(value) {
+      this.wageBaseStubString = value;
+    },
+    getPastProjectionStubString() {
+      return this.pastProjectionStubString;
+    },
+    setPastProjectionStubString(value) {
+      this.pastProjectionStubString = value;
+    },
+    getFutureProjectionStubString() {
+      return this.futureProjectionStubString;
+    },
+    setFutureProjectionStubString(value) {
+      this.futureProjectionStubString = value;
+    },
+    getPiaEverythingElse() {
+      return this.piaEverythingElse;
+    },
+    setPiaEverythingElse(value) {
+      this.piaEverythingElse = value;
+    },
+  };
+  return piaData;
 }
 
 export class PiaFormat {
   piaAll: string;
-  piaData: PIAData;
+  piaData: PiaTypes.PiaData;
   constructor(piaInput: string, fileName: string) {
     this.piaAll = piaInput;
     const lines = piaInput.split("\n");
-    this.piaData = deserializePIAData(lines);
+    this.piaData = deserializePiaData(lines);
   }
-
-  outputPIA() {
-    var linesRecords = serializePIAData(this.piaData);
+  //TODO - getters and setters for retire date, birthdate and earnings.
+  outputPia() {
+    var linesRecords = serializePiaData(this.piaData);
     const lines = Object.entries(linesRecords)
       .sort((a: Array<any>, b: Array<any>) => {
         if (a[0] === b[0]) {
@@ -790,112 +892,4 @@ export class PiaFormat {
 
     return lines;
   }
-}
-function piaSubstr(str: string, start: number, end: number): string {
-  let start_pos = start - 1;
-  let str_len = end - start + 1;
-  return str.substr(start_pos, str_len);
-}
-
-function parsePiaString(str: string, start: number, end: number): string {
-  return piaSubstr(str, start, end);
-}
-
-function parsePiaMonthYear(
-  lineStr: string,
-  start: number,
-  end: number
-): PIAMonthYear {
-  let moyrStr = piaSubstr(lineStr, start, end);
-  let month = moyrStr.slice(0, 2);
-  let year = moyrStr.slice(2);
-  // console.log(moyrStr, "month", month, "year", year);
-  /* starts in mmyyyy, dayjs takes yyyy-mm-dd */
-  var piaMonth: PIAMonthYear = dayjs(
-    [parseInt(year, 10), parseInt(month, 10), 1].join("-")
-  ).toDate();
-  return piaMonth;
-}
-
-function parsePiaSex(lineStr: string, start: number, end: number): PIASex {
-  let genderStr = piaSubstr(lineStr, start, end);
-  let genInt = parseInt(genderStr, 10);
-  let sex: PIASex = genInt;
-  return sex;
-}
-
-function parseSSABenefitType(
-  lineStr: string,
-  start: number,
-  end: number
-): SSABenefitType {
-  let benStr = piaSubstr(lineStr, start, end);
-  let benInt = parseInt(benStr, 10);
-  let ssaBen: SSABenefitType = benInt;
-  return ssaBen;
-}
-
-function parseYearEarningsLineString(
-  lineStr: string,
-  startCharacter: number,
-  startYear: PIAYear,
-  dataEntryLength: number
-): Map<PIAYear, PIAEarnings> {
-  let yrDataMap = new Map<PIAYear, PIAEarnings>();
-  const zeroIndexStartChar = startCharacter - 1;
-  let currentYear = Number(startYear);
-  for (var i = zeroIndexStartChar; i < lineStr.length; i += dataEntryLength) {
-    let val: PIAEarnings = parsePiaCurrency(lineStr.substr(i, dataEntryLength));
-    yrDataMap.set(currentYear, val);
-    currentYear = currentYear + 1;
-  }
-  return yrDataMap;
-}
-
-function parsePiaTypeOfEarningsString(
-  lineStr: string,
-  startCharacter: number,
-  startYear: PIAYear
-): Map<PIAYear, PIATypeOfEarnings> {
-  let toeMap = new Map<PIAYear, PIATypeOfEarnings>();
-  const zeroIndexStartCharacter = startCharacter - 1;
-
-  let currentYear = Number(startYear);
-  for (var i = zeroIndexStartCharacter; i < lineStr.length; i++) {
-    let val: PIATypeOfEarnings = parseInt(lineStr.charAt(i), 10);
-    toeMap.set(currentYear, val);
-    currentYear = currentYear + 1;
-  }
-  return toeMap;
-}
-
-function parsePiaDate(lineStr: string, start: number, end: number): PIADate {
-  let mdyStr = piaSubstr(lineStr, start, end);
-  let month = mdyStr.slice(0, 2);
-  let day = mdyStr.slice(2, 4);
-  let year = mdyStr.slice(4);
-  /* dayjs will use local timezone */
-  /* starts in mmddyyyy, dayjs takes yyyy-mm-dd */
-  let piaDate: PIADate = dayjs(
-    [parseInt(year, 10), parseInt(month, 10), parseInt(day, 10)].join("-")
-  );
-  return piaDate;
-}
-
-//Parces a pia currency values
-function parsePiaCurrency(val: string): Number {
-  val = val.replace(".", "");
-  return parseInt(val) / 100.0;
-}
-
-function parsePiaFloat(val: string): Number {
-  return parseFloat(val);
-}
-
-function formatPIADateStr(date: PiaDate): string {
-  return dayjs(date).format("MMDDYYYY");
-}
-
-function formatPIAMonthStr(monthYear: PIAMonthYear): string {
-  return dayjs(monthYear).format("MMYYYY");
 }
